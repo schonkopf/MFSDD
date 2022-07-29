@@ -14,6 +14,8 @@ class multifeature_dynamic_decomposition:
     if transformation=='min-max':
       from sklearn.preprocessing import minmax_scale
       matrix = minmax_scale(self.data, axis=1)
+    else:
+      matrix = self.data
     
     if detrend_label:
       import copy
@@ -35,7 +37,7 @@ class multifeature_dynamic_decomposition:
         colorscale='Jet', zmin = vmin, zmax = vmax))
     return fig
 
-  def plot_2D_variation(self, data_reduced, color_label, groupby_label=None, disp='Summary'):
+  def plot_2D_variation(self, data_reduced, color_label, groupby_label=None, text_label=None, disp='Summary'):
     y_range=np.max(data_reduced[:,1])-np.min(data_reduced[:,1])
     x_range=np.max(data_reduced[:,0])-np.min(data_reduced[:,0])
     y_range=[np.min(data_reduced[:,1])-y_range*0.1, np.max(data_reduced[:,1])+y_range*0.1]
@@ -47,11 +49,11 @@ class multifeature_dynamic_decomposition:
       group_unique=np.unique(self.label[groupby_label])
       fig = make_subplots(rows=1, cols=len(group_unique), subplot_titles=group_unique.astype('object'))
       for n in range(len(group_unique)):
-        fig=self.scatter_plot(fig, df, groupby_label, group_unique[n], color_label, disp=disp, row=1, col=n+1)
+        fig=self.scatter_plot(fig, df, groupby_label, group_unique[n], color_label, text_label=text_label, disp=disp, row=1, col=n+1)
 
     else:
       fig = make_subplots(rows=1, cols=1)
-      fig=self.scatter_plot(fig, df, groupby_label=None, name=None, color_label=color_label, disp=disp, row=1, col=1)
+      fig=self.scatter_plot(fig, df, groupby_label=None, name=None, color_label=color_label, text_label=text_label, disp=disp, row=1, col=1)
       
     fig.update_yaxes(range = y_range)
     fig.update_xaxes(range = x_range)
@@ -68,11 +70,11 @@ class multifeature_dynamic_decomposition:
     df=df.groupby(by=[groupby_label,dependence_label]).mean()
     df.reset_index(inplace=True)
     df2=pd.concat([self.label, factor_score], axis=1)
-    df2=df2.groupby(by=[groupby_label,dependence_label]).std()
+    df2=df2.groupby(by=[groupby_label,dependence_label]).sem()*1.96
     df2.reset_index(inplace=True)
 
     subplot_titles=np.array(['Factor '+str(i+1) for i in range(factor_score.shape[1])])
-    color=px.colors.qualitative.Pastel1
+    color=px.colors.qualitative.T10
 
     fig = make_subplots(rows=int(np.ceil(factor_score.shape[1]/2)), cols=2, subplot_titles=subplot_titles, vertical_spacing=0.1)
     for j in range(factor_score.shape[1]):
@@ -105,7 +107,7 @@ class multifeature_dynamic_decomposition:
     label=df.groupby([groupby_label])[groupby_label].mean()
     return avg_x, avg_y, std_x, std_y, label
 
-  def scatter_plot(self, fig, df, groupby_label=None, name=None, color_label=None, disp='Summary', row=1, col=1):
+  def scatter_plot(self, fig, df, groupby_label=None, name=None, color_label=None, text_label=None, disp='Summary', row=1, col=1):
     if disp=='Summary':
       if groupby_label:
         avg_x, avg_y, std_x, std_y, label=self.subgroup(df[df[groupby_label]==name], color_label)
@@ -124,13 +126,17 @@ class multifeature_dynamic_decomposition:
         x=df[df[groupby_label]==name][0]
         y=df[df[groupby_label]==name][1]
         label=df[df[groupby_label]==name][color_label]
+        text_data=df[df[groupby_label]==name][text_label]
       else:
         x=df[0]
         y=df[1]
         label=df[color_label]
+        text_data=df[text_label]
       fig.add_trace(go.Scatter(name=name, x=x, y=y, mode='markers',
+            customdata=np.stack((label, text_data), axis=-1),
             marker=dict(color=label, size=8, colorbar=dict(thickness=10))),
             row=row, col=col)
+      fig.update_traces(hovertemplate="<br>".join(["Month: %{customdata[0]}", "Time (MATLAB): %{customdata[1]}",]))
     return fig
 
   def sunburst(self, W, H, expression=None, reconstruct_source=None, H_supplementary=[]):
